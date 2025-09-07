@@ -1,0 +1,40 @@
+services:
+  viseme-bus:
+    image: redis:alpine
+    container_name: avatar-viseme-bus
+    ports:
+      - "6379:6379"
+    networks: 
+      - avatar_net
+    restart: unless-stopped
+
+  vllm-avatars:
+    image: vllm/vllm-openai:latest
+    container_name: vllm-avatars
+    command: >-
+      --model Qwen/Qwen2.5-3B-Instruct
+      --port 8000
+      --host 0.0.0.0
+      --max-model-len 4096
+      --gpu-memory-utilization 0.90
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+      - CUDA_VISIBLE_DEVICES=0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    ports:
+      - "8000:8000"
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    networks: 
+      - avatar_net
+    restart: unless-stopped
+
+networks:
+  avatar_net:
+    driver: bridge

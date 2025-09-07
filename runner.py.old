@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+"""
+Plugin-enabled wrapper for AvatarPipeline
+Safely extends main_pipeline.py without modifying it
+"""
+import os
+import sys
+import glob
+import importlib.util
+import traceback
+from pathlib import Path
+
+print("[Runner] Starting plugin system initialization...")
+
+# Import your existing WORKING app
+try:
+    import main_pipeline
+    print("[Runner] Successfully imported main_pipeline")
+except ImportError as e:
+    print(f"[Runner] FATAL: Cannot import main_pipeline: {e}")
+    sys.exit(1)
+
+PLUGIN_DIR = os.path.expanduser("~/.avatar/plugins")
+Path(PLUGIN_DIR).mkdir(parents=True, exist_ok=True)
+print(f"[Runner] Plugin directory: {PLUGIN_DIR}")
+
+def _load_plugins():
+    """Load all .py files from the plugins directory"""
+    mods = []
+    plugin_files = sorted(glob.glob(os.path.join(PLUGIN_DIR, "*.py")))
+    
+    if not plugin_files:
+        print("[Runner] No plugins found")
+        return mods
+    
+    for path in plugin_files:
+        try:
+            name = "plugin_" + os.path.basename(path)[:-3]
+            print(f"[Runner] Loading plugin: {name} from {path}")
+            spec = importlib.util.spec_from_file_location(name, path)
+            if spec and spec.loader:
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                mods.append(mod)
+                print(f"[Runner] ✓ Loaded: {name}")
+            else:
+                print(f"[Runner] ✗ Failed to create spec for: {path}")
+        except Exception as e:
+            print(f"[Runner] ✗ Error loading {path}: {e}")
+            traceback.print_exc()
+    
+    print(f"[Runner] Loaded {len(mods)} plugin(s)")
+    return mods
+
+class AvatarWithPlugins(main_pipeline.AvatarPipeline):
+    """Extended AvatarPipeline with plugin support"""
+    
+    def __init__(self):
+        print("[Runner] Initializing AvatarWithPlugins...")
+        
+        # Initialize the base class first
+        try:
+            super().__init__()
+            print("[Runner] Base AvatarPipeline initialized successfully")
+        except Exception as e:
+            print(f"[Runner] FATAL: Failed to initialize AvatarPipeline: {e}")
+            traceback.print_exc()
+            raise
+        
+        # Load plugins
+        try:
+            self._plugins = _load_plugins()
+            
+            # Register plugins that have a register function
+            for m in self._plugins:
+                if hasattr(m, "register"):
+                    try:
+                        m.register(self)
+                        print(f"[Runner] Registered: {getattr(m, '__name__', 'unknown')}")
+                    except Exception as e:
+                        print(f"[Runner] Failed to register {getattr(m, '__name__', 'unknown')}: {e}")
+                        traceback.print_exc()
+        except Exception as e:
+            print(f"[Runner] Error during plugin loading: {e}")
+            self._plugins = []  # Continue without plugins
+
+    def reload_plugins(self):
+        """Hot-reload all plugins"""
+        print("[Runner] Reloading plugins...")
+        try:
+            self._plugins = _load_plugins()
+            print(f"[Runner] Reloaded {len(self._plugins)} plugin(s)")
+        except Exception as e:
+            print(f"[Runner] Error reloading plugins: {e}")
+            traceback.print_exc()
+
+    def list_plugins(self):
+        """Get list of loaded plugin names"""
+        return [getattr(m, "__name__", "unknown") for m in self._plugins]
+
+    def maybe_handle_voice_command(self, user_text):
+        """Handle voice commands - first built-ins, then plugins"""
+        
+        # 1) Try built-in commands from main_pipeline first
+        try:
+            if super().maybe_handle_voice_command(user_text):
+                return True
+        except Exception as e:
+            print(f"[Runner] Error in base voice handler: {e}")
+            # Continue to try plugins even if base handler has issues
+        
+        if not user_text:
+            return False
+            
+        t = user_text.strip().lower()
+        
+        # 2) Plugin management commands
+        if t in ("reload plugins", "reload plug ins", "refresh plugins"):
+            self.reload_plugins()
+            self.current_text = "AI: Plugins reloaded."
+            if self.enable_tts:
+                try:
+                    wav = self.synthesize_speech("Plugins reloaded.")
+                    if wav:
+                        self.play_audio(wav)
+                except Exception as e:
+                    print(f"[Runner] TTS error: {e}")
+            return True
+        
+        if t in ("list plugins", "what plugins", "show plugins"):
+            names = ", ".join(self.list_plugins()) or "none"
+            self.current_text = f"AI: Plugins: {names}"
+            if self.enable_tts:
+                try:
+                    speech_text = f"Loaded plugins: {names.replace('_', ' ')}"
+                    wav = self.synthesize_speech(speech_text)
+                    if wav:
+                        self.play_audio(wav)
+                except Exception as e:
+                    print(f"[Runner] TTS error: {e}")
+            return True
+        
+        # 3) Let each plugin try to handle the command
+        for m in self._plugins:
+            try:
+                if hasattr(m, "handle"):
+                    if m.handle(self, user_text):
+                        return True
+            except Exception as e:
+                plugin_name = getattr(m, "__name__", "unknown")
+                print(f"[Runner] Plugin error in {plugin_name}: {e}")
+                traceback.print_exc()
+        
+        return False
+
+def main():
+    """Main entry point with error handling"""
+    print("[Runner] Starting AvatarWithPlugins application...")
+    print(f"[Runner] Python version: {sys.version}")
+    print(f"[Runner] Working directory: {os.getcwd()}")
+    
+    try:
+        app = AvatarWithPlugins()
+        print("[Runner] Starting main loop...")
+        app.run()
+    except KeyboardInterrupt:
+        print("\n[Runner] Shutdown requested by user")
+        sys.exit(0)
+    except Exception as e:
+        print(f"[Runner] FATAL ERROR: {e}")
+        traceback.print_exc()
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

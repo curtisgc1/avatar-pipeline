@@ -1,0 +1,8 @@
+{
+  "wake_words": ["jarvis", "computer", "hey curtis"],
+  "voice": "en-US-AriaNeural",
+  "volume": 30,
+  "response_timeout": 15,
+  "listen_duration": 3,
+  "response_length": 20
+}

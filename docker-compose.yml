@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # Viseme Bus (Redis)
+  viseme-bus:
+    image: redis:alpine
+    container_name: avatar-viseme-bus
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  # STT Service (CPU only - using faster-whisper)
+  whisper-stt:
+    image: onerahmet/openai-whisper-asr-webservice:latest
+    container_name: avatar-stt
+    ports:
+      - "9000:9000"
+    environment:
+      - ASR_MODEL=base
+      - ASR_ENGINE=faster_whisper
+    volumes:
+      - ~/avatar-models/whisper:/root/.cache/whisper
+    deploy:
+      resources:
+        limits:
+          cpus: '8'
+          memory: 16G
+    restart: unless-stopped
+
+  # LLM Service - vLLM (RTX 5080)
+  vllm-avatars:
+    image: vllm/vllm-openai:latest
+    container_name: vllm-avatars
+    command: >-
+      --model Qwen/Qwen2.5-3B-Instruct
+      --port 8000
+      --host 0.0.0.0
+      --max-model-len 4096
+      --gpu-memory-utilization 0.90
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${GPU_5080_UUID}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # TTS Service - Kokoro (RTX 4090)
+  kokoro-tts:
+    build:
+      context: ./kokoro
+      dockerfile: Dockerfile
+    container_name: avatar-tts
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${GPU_4090_UUID}
+    ports:
+      - "5002:5002"
+    volumes:
+      - ~/avatar-models/tts:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped

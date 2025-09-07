@@ -1,0 +1,3 @@
+index, uuid, name, memory.total [MiB]
+0, GPU-588625df-63e3-a721-1b4b-df882b837b3d, NVIDIA GeForce RTX 5080, 16303 MiB
+1, GPU-65f840f0-e3eb-20dd-8701-fd28db808a8c, NVIDIA GeForce RTX 4090, 24564 MiB

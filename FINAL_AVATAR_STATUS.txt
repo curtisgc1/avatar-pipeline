@@ -1,0 +1,72 @@
+AVATAR PIPELINE - FINAL STATUS
+===============================
+Date: September 3, 2025
+Location: ~/avatar-pipeline/
+
+COMPLETED & WORKING
+===================
+✓ vLLM on RTX 5080 (port 8000)
+✓ Whisper STT on CPU (port 9000)  
+✓ TTS placeholder on RTX 4090 (port 5002)
+✓ Audio output verified working
+✓ GPU UUID binding configured
+✓ HDMI moved to RTX 4090
+
+SERVICES RUNNING
+================
+- vllm-avatars (5080)
+- avatar-stt (CPU)
+- avatar-tts (4090)
+- redis
+
+DISPLAY SETUP - SOLUTIONS
+==========================
+The HDMI display on 4090 needs one of these approaches:
+
+1. FROM UBUNTU DESKTOP (Easiest):
+   - Open terminal in Ubuntu GUI
+   - cd ~/avatar-pipeline
+   - DISPLAY=:0 python3 show_avatar.py
+
+2. DEDICATED X SESSION (Best for production):
+   - sudo xinit /usr/bin/python3 ~/avatar-pipeline/show_avatar.py -- :2 vt8
+   - This creates dedicated display for avatar
+
+3. TWO MONITOR SETUP (Your final goal):
+   - Monitor 1: VGA → ASPEED (Ubuntu desktop)
+   - Monitor 2: HDMI → RTX 4090 (Avatar display)
+   - Will work automatically once both connected
+
+ORCHESTRATOR NEEDED
+===================
+Create main loop that:
+1. Records from ReSpeaker
+2. Sends to STT (port 9000)
+3. Gets response from vLLM (port 8000)
+4. Generates audio with TTS (port 5002)
+5. Displays avatar animation
+
+TO RESUME
+=========
+cd ~/avatar-pipeline
+docker ps | grep avatar  # Check services
+python3 test_audio_fixed.py  # Test audio
+# Then run display from Ubuntu desktop terminal
+
+HANDOFF NOTES
+=============
+- Basic pipeline working
+- Display needs X authorization (run from desktop or use xinit)
+- Next: Add real TTS model (Kokoro/XTTS)
+- Then: Create orchestrator to connect everything
+
+AVATAR DISPLAY - WORKING!
+========================
+Date: Sep 3, 2025
+- Avatar displays on 4090 HDMI monitor
+- Running from Ubuntu GUI terminal works perfectly
+- Files created via SSH, executed from GUI
+
+WORKING COMMAND:
+cd ~/avatar-pipeline
+python3 test_avatar_on_monitor.py

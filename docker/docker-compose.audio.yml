@@ -1,0 +1,36 @@
+services:
+  whisper-asr:
+    image: onerahmet/openai-whisper-asr-webservice:latest-gpu
+    container_name: avatar-whisper
+    environment:
+      - ASR_MODEL=base
+      - ASR_ENGINE=openai_whisper
+      - NVIDIA_VISIBLE_DEVICES=0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    ports:
+      - "9000:9000"
+    networks:
+      - avatar_net
+    restart: unless-stopped
+
+  piper-tts:
+    image: rhasspy/wyoming-piper:latest
+    container_name: avatar-tts
+    command: ["--voice", "en_US-amy-medium"]
+    ports:
+      - "10200:10200"
+    networks:
+      - avatar_net
+    volumes:
+      - ./piper-data:/data
+    restart: unless-stopped
+
+networks:
+  avatar_net:
+    external: true

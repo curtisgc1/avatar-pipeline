@@ -1,0 +1,37 @@
+AVATAR PIPELINE SETUP - CURRENT STATUS
+Date: September 2025
+Location: ~/avatar-pipeline/
+
+COMPLETED SETUP
+===============
+GPU Configuration:
+- RTX 5080 (index 0): GPU-588625df-63e3-a721-1b4b-df882b837b3d
+- RTX 4090 (index 1): GPU-65f840f0-e3eb-20dd-8701-fd28db808a8c
+
+Running Services:
+1. vLLM (RTX 5080) - Port 8000 - Running Qwen2.5-3B
+2. Whisper STT (CPU) - Port 9000 - Working
+3. Kokoro TTS (RTX 4090) - Port 5002 - Placeholder working, needs model
+4. Redis - Port 6379 - Running for viseme bus
+
+Files Created:
+- .env (GPU UUIDs configured)
+- docker-compose.yml (basic services)
+- kokoro/Dockerfile
+- kokoro/server.py (placeholder)
+- test_pipeline.py
+
+NEXT STEPS
+==========
+1. Download real Kokoro model
+2. Create avatar display service
+3. Build orchestrator to connect everything
+
+TO CONTINUE WORK
+================
+cd ~/avatar-pipeline
+docker ps | grep avatar
+python3 test_pipeline.py
+
+All basic services tested and working.
+Ready for next phase: avatar display on HDMI.

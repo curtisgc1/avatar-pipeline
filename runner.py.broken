@@ -1,0 +1,72 @@
+import os, glob, importlib.util, traceback
+from pathlib import Path
+
+# import your existing app
+import main_pipeline
+
+PLUGIN_DIR = os.path.expanduser("~/.avatar/plugins")
+Path(PLUGIN_DIR).mkdir(parents=True, exist_ok=True)
+
+def _load_plugins():
+    mods = []
+    for path in sorted(glob.glob(os.path.join(PLUGIN_DIR, "*.py"))):
+        try:
+            name = "plugin_" + os.path.basename(path)[:-3]
+            spec = importlib.util.spec_from_file_location(name, path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)  # type: ignore
+            mods.append(mod)
+        except Exception:
+            print("plugin load error:", path)
+            traceback.print_exc()
+    return mods
+
+class AvatarWithPlugins(main_pipeline.AvatarPipeline):
+    def __init__(self):
+        super().__init__()
+        self._plugins = _load_plugins()
+        for m in self._plugins:
+            if hasattr(m, "register"):
+                try: m.register(self)
+                except Exception: traceback.print_exc()
+
+    def reload_plugins(self):
+        self._plugins = _load_plugins()
+
+    def list_plugins(self):
+        return [getattr(m, "__name__", "unknown") for m in self._plugins]
+
+    def maybe_handle_voice_command(self, user_text):
+        # 1) built-ins from your main app
+        if super().maybe_handle_voice_command(user_text):
+            return True
+
+        t = (user_text or "").strip().lower()
+        # 2) plugin management voice commands
+        if t in ("reload plugins", "reload plug ins", "refresh plugins"):
+            self.reload_plugins()
+            self.current_text = "AI: Plugins reloaded."
+            if self.enable_tts:
+                wav = self.synthesize_speech("Plugins reloaded.")
+                if wav: self.play_audio(wav)
+            return True
+
+        if t in ("list plugins", "what plugins", "show plugins"):
+            names = ", ".join(self.list_plugins()) or "none"
+            self.current_text = "AI: Plugins: " + names
+            if self.enable_tts:
+                wav = self.synthesize_speech("Loaded plugins: " + (names.replace("_", " ")))
+                if wav: self.play_audio(wav)
+            return True
+
+        # 3) let each plugin try to handle the utterance
+        for m in self._plugins:
+            try:
+                if hasattr(m, "handle") and m.handle(self, user_text):
+                    return True
+            except Exception:
+                traceback.print_exc()
+        return False
+
+if __name__ == "__main__":
+    AvatarWithPlugins().run()

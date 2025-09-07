@@ -1,0 +1,39 @@
+AVATAR PIPELINE - PROGRESS UPDATE
+Date: September 3, 2025
+Location: ~/avatar-pipeline/
+
+WORKING COMPONENTS
+==================
+1. vLLM (RTX 5080) - Port 8000 - Qwen2.5-3B
+2. Whisper STT (CPU) - Port 9000 - Operational
+3. TTS Server (RTX 4090) - Port 5002 - Audio generation working
+4. Redis - Port 6379 - Running
+
+VERIFIED FUNCTIONALITY
+======================
+- GPU UUID binding working correctly
+- Audio playback through system speakers verified
+- Base64 audio encoding/decoding functional
+- Docker networking stable
+- All services communicating
+
+NEXT CRITICAL STEPS
+===================
+1. Display avatar on HDMI monitor (RTX 4090 output)
+2. Create orchestrator to connect:
+   - ReSpeaker mic input -> STT -> LLM -> TTS -> Display
+3. Add real TTS model (Kokoro or XTTS) for speech
+4. Implement wake word detection
+
+FILES READY
+===========
+- docker-compose.yml (services configured)
+- kokoro/server.py (audio generation working)
+- test_audio_fixed.py (audio test working)
+- .env (GPU UUIDs set correctly)
+
+TO CONTINUE
+===========
+cd ~/avatar-pipeline
+docker ps | grep avatar
+python3 test_audio_fixed.py  # Verify audio still works

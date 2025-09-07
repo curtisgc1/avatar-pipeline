@@ -1,0 +1,31 @@
+{
+  "curtis": {
+    "name": "Curtis",
+    "voice_signature": null,
+    "preferences": {
+      "voice": "en-US-GuyNeural",
+      "volume": 30,
+      "response_length": "brief",
+      "wake_word": "jarvis"
+    },
+    "context": {
+      "setup": "RTX 5080 for avatars, RTX 4090 for Ollama, 1TB RAM",
+      "current_project": "Avatar pipeline with lip sync",
+      "interests": [
+        "AI",
+        "real-time avatars",
+        "voice systems"
+      ],
+      "notes": []
+    },
+    "memory": {
+      "conversations": [],
+      "facts": [
+        "Prefers best models over speed",
+        "Has ReSpeaker 4-mic array",
+        "Monitor connected to 5080 HDMI",
+        "Running dual EPYC 7742s"
+      ]
+    }
+  }
+}
