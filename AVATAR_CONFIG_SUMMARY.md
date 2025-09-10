@@ -1,29 +1,29 @@
-# Avatar Pipeline Configuration - September 4, 2025
+# Avatar Pipeline Configuration - September 9, 2025
 # This file documents the current state of your avatar pipeline setup
 
 ## Project Location
 /home/curtis/avatar-pipeline
 
 ## Hardware Configuration
-- RTX 5080 (GPU 0): GPU-588625df-63e3-a721-1b4b-df882b837b3d (for vLLM)
-- RTX 4090 (GPU 1): GPU-65f840f0-e3eb-20dd-8701-fd28db808a8c (for TTS/Display)
-- ReSpeaker Microphone: hw:2,0
-- HDMI Display: Connected to RTX 4090
+- **Jetson Orin Nano**: GPU-0b1bceb1-f932-552d-a009-72255ffb72bf (for vLLM, TTS, Display)
+- **ReSpeaker 4 Mic Array**: hw:2,0 (USB Audio Device)
+- **HDMI Display**: Connected to Jetson Orin
+- **Network**: 192.168.1.31 (Jetson IP)
 
 ## Services Configuration
 ### Docker Services (docker-compose.yml)
-- vLLM (Qwen2.5-3B): Port 8000
-- Whisper STT: Port 9000
-- Kokoro TTS: Port 5002
-- Redis (Viseme Bus): Port 6379
+- vLLM (Qwen2.5-3B): Port 8000 - Jetson GPU
+- Whisper STT: Port 9000 - CPU optimized
+- Kokoro TTS: Port 5002 - Jetson GPU
+- Redis (Viseme Bus): Port 6379 - Communication bus
 
 ### Environment Variables (.env)
-GPU_5080_UUID=GPU-588625df-63e3-a721-1b4b-df882b837b3d
-GPU_4090_UUID=GPU-65f840f0-e3eb-20dd-8701-fd28db808a8c
-SERVER_IP=192.168.1.100
+GPU_5080_UUID=0b1bceb1-f932-552d-a009-72255ffb72bf
+GPU_4090_UUID=0b1bceb1-f932-552d-a009-72255ffb72bf
+SERVER_IP=192.168.1.31
 DISPLAY=:0
 MODEL_PATH=/home/curtis/avatar-models
-AUDIO_DEVICE=plughw:2,0
+AUDIO_DEVICE=hw:2,0
 
 ## VS Code Extensions
 - formulahendry.code-runner
@@ -34,19 +34,21 @@ AUDIO_DEVICE=plughw:2,0
 - main_pipeline.py: Main orchestrator (currently being developed)
 - avatar_interactive.py: Interactive avatar with display
 - avatar_complete.py: Voice-only avatar
-- kokoro/server.py: TTS service
+- kokoro/server.py: TTS service (placeholder)
 - docker-compose.yml: Service orchestration
 
 ## Current Status
-✅ GPU configuration complete
-✅ Basic services configured
-✅ Avatar display working on 4090 HDMI
-✅ Audio input/output tested
+✅ Jetson Orin configured with passwordless SSH
+✅ Docker and NVIDIA Container Runtime installed
+✅ GPU UUID configured for Jetson
+✅ Audio devices detected (ReSpeaker on card 2)
+✅ Services configured for Jetson compatibility
+🔄 ALSA audio configuration needs fixing
 🔄 Main pipeline integration in progress
 
 ## Quick Start Commands
-# Start services
-docker-compose up -d
+# Start services (from Jetson)
+docker compose up -d
 
 # Test pipeline
 python3 test_pipeline.py
@@ -61,7 +63,7 @@ python3 main_pipeline.py
 Latest backup: /home/curtis/avatar-pipeline-backup-YYYYMMDD-HHMMSS.tar.gz
 
 ## Notes
-- Run avatar display from Ubuntu desktop terminal with DISPLAY=:0
-- Use dedicated X session (:2) for production
+- Run avatar display from Jetson desktop with DISPLAY=:0
 - ReSpeaker is on audio device hw:2,0
-- HDMI output goes through RTX 4090
+- All services use Jetson Orin GPU
+- Audio configuration needs ALSA fixes

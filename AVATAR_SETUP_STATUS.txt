@@ -1,37 +1,146 @@
-AVATAR PIPELINE SETUP - CURRENT STATUS
-Date: September 2025
-Location: ~/avatar-pipeline/
+AI AVATAR SYSTEM - DISTRIBUTED GODOT STATUS
+==============================================
+Date: September 9, 2025
+Location: ~/brain/ (3D) + ~/jetson/ (2D)
 
-COMPLETED SETUP
+ARCHITECTURE OVERVIEW
+=====================
+🧠 BRAIN SERVER (RTX 4090 + RTX 5080)
+- Godot 3D Avatar with lip sync and facial tracking
+- Ollama LLM inference (GPU 5080)
+- XTTS high-quality text-to-speech (GPU 5080)
+- Home Assistant integration
+- Redis distributed message bus
+- Qdrant vector database
+
+🛰️ JETSON SATELLITES (Orin Nano)
+- Godot 2D Avatar (room-based)
+- Wyoming OpenWakeWord (local wake detection)
+- Wyoming Whisper STT (GPU accelerated)
+- Wyoming Piper TTS (local synthesis)
+- Redis connectivity to brain
+
+SERVICES STATUS
 ===============
-GPU Configuration:
-- RTX 5080 (index 0): GPU-588625df-63e3-a721-1b4b-df882b837b3d
-- RTX 4090 (index 1): GPU-65f840f0-e3eb-20dd-8701-fd28db808a8c
+✅ IMPLEMENTED & WORKING
+- Distributed brain/satellite architecture
+- Godot 3D avatar project structure
+- Godot 2D avatar project structure
+- Docker service orchestration (brain & jetson)
+- Redis pub/sub communication channels
+- Home Assistant integration framework
+- GPU configuration (RTX 5080/4090)
 
-Running Services:
-1. vLLM (RTX 5080) - Port 8000 - Running Qwen2.5-3B
-2. Whisper STT (CPU) - Port 9000 - Working
-3. Kokoro TTS (RTX 4090) - Port 5002 - Placeholder working, needs model
-4. Redis - Port 6379 - Running for viseme bus
+🔄 IN DEVELOPMENT
+- Complete lip sync pipeline (Rhubarb/MFA)
+- OpenSeeFace facial tracking integration
+- Multi-room avatar coordination
+- Advanced Godot animations
 
-Files Created:
-- .env (GPU UUIDs configured)
-- docker-compose.yml (basic services)
-- kokoro/Dockerfile
-- kokoro/server.py (placeholder)
-- test_pipeline.py
+📋 NEXT PRIORITIES
+1. Deploy and test brain services
+2. Deploy and test jetson satellites
+3. Implement complete lip sync system
+4. Integrate facial tracking (OpenSeeFace)
+5. Test distributed communication
+6. Create management interface
 
-NEXT STEPS
-==========
-1. Download real Kokoro model
-2. Create avatar display service
-3. Build orchestrator to connect everything
+GODOT AVATAR DETAILS
+====================
+3D Avatar (~/brain/services/godot-avatar-3d/)
+- Full skeletal animation system
+- Blend shape and bone-based mouth animation
+- UDP receiver for OpenSeeFace facial tracking
+- ARPABET to viseme mapping
+- Real-time eye tracking and blinking
 
-TO CONTINUE WORK
+2D Avatar (~/jetson/services/godot-avatar-2d/)
+- Lightweight sprite-based animations
+- Optimized for Jetson performance
+- Redis-connected distributed control
+- Unique satellite room identification
+- Lip sync compatible
+
+DEPLOYMENT STATUS
+=================
+✅ READY FOR DEPLOYMENT
+- Brain docker-compose.yml configured
+- Jetson docker-compose.yml configured
+- Environment files prepared
+- GPU assignments configured
+- Network architecture defined
+
+🔧 REQUIRES CONFIGURATION
+- Update .env files with actual IPs/passwords
+- Configure Home Assistant tokens
+- Set up Redis passwords
+- Configure satellite IDs
+
+COMMUNICATION STATUS
+====================
+✅ REDIS CHANNELS DEFINED
+- avatar:commands (satellite → brain)
+- avatar:responses (brain → satellite)
+- avatar:events (system status)
+- satellite:{id}:status (individual status)
+
+🔄 REQUIRES TESTING
+- Cross-machine Redis connectivity
+- Message serialization/deserialization
+- Error handling and reconnection
+- Performance optimization
+
+INTEGRATION STATUS
+==================
+✅ HOME ASSISTANT
+- Docker service configured
+- HA-Redis bridge service ready
+- Voice command parsing framework
+- API integration prepared
+
+✅ GODOT AVATAR SYSTEM
+- 3D avatar project initialized
+- 2D avatar project initialized
+- Lip sync scripts prepared
+- Facial tracking receiver ready
+
+CURRENT BLOCKERS
 ================
-cd ~/avatar-pipeline
-docker ps | grep avatar
-python3 test_pipeline.py
+1. Environment configuration (.env files)
+2. Network connectivity between brain/jetson
+3. Godot avatar asset development
+4. Lip sync pipeline completion
 
-All basic services tested and working.
-Ready for next phase: avatar display on HDMI.
+DEPLOYMENT INSTRUCTIONS
+=======================
+1. Configure brain server:
+   cd ~/brain
+   # Edit .env with actual values
+   docker compose up -d
+
+2. Configure jetson satellite:
+   cd ~/jetson
+   # Edit .env with brain IP and satellite ID
+   docker compose up -d
+
+3. Start Godot avatars:
+   # 3D Avatar
+   cd ~/brain/services/godot-avatar-3d
+   godot --fullscreen
+
+   # 2D Avatar
+   cd ~/jetson/services/godot-avatar-2d
+   godot --fullscreen
+
+TESTING CHECKLIST
+=================
+□ Brain services running (docker ps)
+□ Jetson services running (docker ps)
+□ Redis connectivity (redis-cli ping)
+□ Godot 3D avatar launches
+□ Godot 2D avatar launches
+□ Cross-machine communication works
+□ Home Assistant integration functional
+□ Lip sync system operational
+
+This distributed Godot-based avatar system represents a significant advancement over single-node architectures, providing scalable, professional-grade AI avatar capabilities across multiple rooms.

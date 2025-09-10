@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
+FROM nvcr.io/nvidia/l4t-pytorch:r35.4.1-pth2.0-py3
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=America/Los_Angeles
@@ -8,8 +8,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir \
-    fastapi uvicorn soundfile numpy scipy \
-    kokoro>=0.9.4
+    fastapi uvicorn soundfile numpy scipy
 
 COPY server.py /app/server.py
 WORKDIR /app

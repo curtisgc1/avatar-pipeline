@@ -1,76 +1,195 @@
-# Avatar Pipeline Project
+# AI Avatar System - Distributed Godot Architecture
 
 ## Overview
-This project implements an AI avatar system using various components for speech recognition, language processing, text-to-speech, and display. It leverages GPUs (RTX 5080 for LLM, RTX 4090 for TTS) and onboard graphics for display management.
+This is a distributed AI avatar system using Godot 4.x for 3D/2D avatar rendering, with separate brain and satellite nodes for scalable deployment.
 
-## Components
-- **STT (Speech-to-Text)**: Whisper ASR via Docker (port 9000)
-- **LLM**: vLLM with Qwen2.5-3B model (port 8000)
-- **TTS**: Kokoro TTS (port 5002)
-- **Display**: Pygame/OpenCV for avatar rendering
-- **Audio**: PyAudio for input/output
-- **Wake Word**: Porcupine or STT-based
-- **Memory**: Persistent conversation memory
+## Architecture
 
-## Installation Steps
-1. **Install Ubuntu 22.04** with onboard ASPEED graphics as primary, PCIe as secondary.
-2. **Install NVIDIA Drivers**:
-   ```
-   sudo apt update
-   sudo apt install nvidia-driver-580
-   ```
-3. **Install Docker**:
-   ```
-   sudo apt install docker.io docker-compose
-   sudo systemctl enable docker
-   ```
-4. **Install Python Dependencies**:
-   ```
-   pip install -r requirements.txt
-   ```
-5. **Configure GPU UUIDs** in `.env`:
-   - GPU_5080_UUID: [your RTX 5080 UUID]
-   - GPU_4090_UUID: [your RTX 4090 UUID]
-6. **Blacklist NVIDIA for Display** (to use onboard VGA):
-   - Create `/etc/modprobe.d/blacklist-nvidia.conf` with:
-     ```
-     blacklist nvidia
-     blacklist nvidia_drm
-     blacklist nvidia_modeset
-     ```
-   - `sudo update-initramfs -u`
-7. **Start Services**:
-   ```
-   cd /home/curtis/avatar-pipeline
-   docker-compose up -d
-   ```
-8. **Run Avatar**:
-   - For VGA GUI: `python3 main_pipeline.py`
-   - For HDMI Avatar: `sudo xinit python3 test_avatar_on_monitor.py -- :1 vt8`
+### 🧠 Main Brain Server (RTX 4090)
+**Location**: `~/brain/`
+**Purpose**: Central AI processing and 3D avatar rendering
 
-## How It Works
-1. **Audio Input**: Records from ReSpeaker mic using VAD.
-2. **STT**: Sends audio to Whisper for transcription.
-3. **LLM**: Processes text with Qwen2.5-3B for response.
-4. **TTS**: Generates speech with Kokoro.
-5. **Display**: Renders avatar on screen with Pygame.
-6. **Wake Word**: Listens for "computer" or custom word.
-7. **Commands**: Supports volume, voice, memory, sleep/wake.
+**Services**:
+- **Ollama** (GPU 5080): AI language model inference
+- **XTTS Server** (GPU 5080): High-quality text-to-speech
+- **Home Assistant**: Smart home integration
+- **Redis**: Distributed message bus
+- **Qdrant**: Vector database for memory/context
+- **Godot 3D Avatar**: Main avatar with lip sync and facial tracking
+
+### 🛰️ Jetson Satellite Nodes (2D Avatars)
+**Location**: `~/jetson/`
+**Purpose**: Room-based 2D avatar deployment
+
+**Services**:
+- **Wyoming OpenWakeWord**: Local wake word detection
+- **Wyoming Whisper**: Local speech-to-text (GPU accelerated)
+- **Wyoming Piper**: Local text-to-speech
+- **Godot 2D Avatar**: Lightweight room avatar
+
+### 🎮 Godot Avatar System
+
+#### 3D Avatar Features:
+- Full 3D character with skeletal animation
+- Real-time lip sync using Rhubarb/MFA phoneme analysis
+- Facial tracking via OpenSeeFace UDP receiver
+- Blend shapes and bone-based mouth animation
+- Eye tracking and blinking simulation
+
+#### 2D Avatar Features:
+- Lightweight sprite-based avatar
+- Redis-connected for distributed control
+- Unique satellite IDs for room identification
+- Optimized for Jetson performance
+
+## Quick Start
+
+### 1. Brain Server Setup
+```bash
+cd ~/brain
+# Configure .env with your GPU IDs and HA credentials
+docker compose up -d
+```
+
+### 2. Jetson Satellite Setup
+```bash
+cd ~/jetson
+# Configure .env with brain IP and satellite ID
+docker compose up -d
+```
+
+### 3. Start Godot Avatars
+```bash
+# 3D Avatar (Brain)
+cd ~/brain/services/godot-avatar-3d
+godot --fullscreen
+
+# 2D Avatar (Jetson)
+cd ~/jetson/services/godot-avatar-2d
+godot --fullscreen
+```
 
 ## Configuration
-- Edit `avatar_config.json` for settings.
-- Use `wake_config.json` for wake words.
-- GPU binding via `.env`.
+
+### Brain Server (.env)
+```bash
+GPU_5080_ID=0
+GPU_4090_ID=1
+REDIS_PASSWORD=your_password
+HA_URL=http://192.168.1.100:8123
+HA_TOKEN=your_ha_token
+```
+
+### Jetson Satellite (.env)
+```bash
+BRAIN_IP=192.168.1.100
+REDIS_PASSWORD=your_password
+SATELLITE_ID=living_room
+```
+
+## Godot Development
+
+### Project Structure
+```
+godot-avatar-3d/
+├── project.godot
+├── scenes/
+│   ├── main.tscn
+│   └── avatar.tscn
+├── scripts/
+│   ├── avatar_driver.gd
+│   ├── openseeface_receiver.gd
+│   └── viseme_map.gd
+└── assets/
+    ├── models/
+    └── audio/
+```
+
+### Key Scripts
+- **AvatarDriver.gd**: Main avatar controller with lip sync
+- **OpenSeeFaceReceiver.gd**: UDP receiver for facial tracking
+- **VisemeMap.gd**: ARPABET to viseme conversion
+
+## Communication
+
+### Redis Channels
+- `avatar:commands`: Voice commands from satellites
+- `avatar:responses`: AI responses from brain
+- `avatar:events`: System status and events
+- `satellite:{id}:status`: Individual satellite status
+
+### Message Format
+```json
+{
+  "type": "voice_command",
+  "satellite_id": "living_room",
+  "text": "turn on the lights",
+  "timestamp": 1640995200
+}
+```
+
+## Development
+
+### Prerequisites
+- Docker & Docker Compose
+- NVIDIA Container Toolkit
+- Godot 4.x
+- Python 3.8+
+
+### Building Services
+```bash
+# Build brain services
+cd ~/brain && docker compose build
+
+# Build jetson services
+cd ~/jetson && docker compose build
+```
+
+### Testing
+```bash
+# Test brain services
+cd ~/brain && docker compose ps
+
+# Test jetson services
+cd ~/jetson && docker compose ps
+
+# Test Redis connection
+redis-cli -h brain_ip ping
+```
 
 ## Troubleshooting
-- VGA not working: Check BIOS for onboard primary.
-- HDMI blank: Ensure NVIDIA loaded for 4090.
-- Services down: `docker ps` to check.
 
-## Files
-- `main_pipeline.py`: Main script
-- `docker-compose.yml`: Services
-- `requirements.txt`: Python deps
-- `test_avatar_on_monitor.py`: Display test
+### Common Issues
 
-For issues, check logs in `ai-avatar.log`.
+**Godot Display Issues**:
+```bash
+# Force display output
+export DISPLAY=:0
+godot --fullscreen --no-window
+```
+
+**Redis Connection**:
+```bash
+# Test connection
+redis-cli -h brain_ip -a password ping
+```
+
+**GPU Issues**:
+```bash
+# Check GPU status
+nvidia-smi
+# Verify container access
+docker run --rm --gpus all nvidia/cuda nvidia-smi
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test on both brain and satellite nodes
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

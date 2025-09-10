@@ -42,7 +42,7 @@ class AvatarPipeline:
         self.stt_url   = os.getenv("STT_URL", "http://localhost:9000")
         self.stt_path  = os.getenv("STT_ASR_PATH", "/asr")
         self.llm_url   = os.getenv("LLM_URL", "http://localhost:11434").rstrip("/") + "/api/generate"
-        self.llm_model = os.getenv("LLM_MODEL", "qwen2.5:7b")
+        self.llm_model = os.getenv("LLM_MODEL", "dolphin-llama3:latest")
 
         # ----- Settings / Memory -----
         self.settings_path = os.path.expanduser("~/.avatar/settings.json")
@@ -508,17 +508,85 @@ class AvatarPipeline:
         # light memory injection
         mem_hits=[e["text"] for e in self.memory if any(w in e.get("text","").lower() for w in user_text.lower().split())][:3]
         mem_block = ("\nMemory:\n" + "\n".join(f"- {m}" for m in mem_hits) + "\n") if mem_hits else ""
-        system=("You are a friendly home avatar. Reply ≤8 words. Direct, no echo."+mem_block)
+
+        # Enhanced system prompt for Home Assistant integration
+        system=("You are a friendly home avatar with access to smart home controls. " +
+               "You can control lights, climate, switches, and other smart devices. " +
+               "For device control, respond with EXACTLY these command formats in brackets: " +
+               "'[TURN_ON_LIGHT living_room]', '[TURN_OFF_LIGHT kitchen]', " +
+               "'[SET_TEMPERATURE 72]', '[TURN_ON_SWITCH fan]', '[TURN_OFF_SWITCH fan]'. " +
+               "For general conversation, reply naturally ≤8 words. " +
+               "Direct, no echo." + mem_block)
+
         prompt=f"System: {system}\nUser: {user_text}\nAssistant:"
         try:
             r=requests.post(self.llm_url, json={"model":self.llm_model,"prompt":prompt,"stream":False,
                                                 "options":{"num_ctx":8192,"temperature":0.2}}, timeout=120)
             if r.status_code!=200: return "Okay."
             reply=(r.json().get("response") or "").strip()
+
+            # Check for Home Assistant commands in the response
+            ha_command = self._extract_ha_command(reply)
+            if ha_command:
+                result = self._execute_ha_command(ha_command)
+                return result
+
+            # Normal response processing
             reply=re.sub(r"\s+"," ",reply); words=reply.split()
             if len(words)>8: reply=" ".join(words[:8]).rstrip(" ,.;:")+"."
             return reply or "Okay."
         except Exception: return "Okay."
+
+    def _extract_ha_command(self, text):
+        """Extract Home Assistant commands from LLM response"""
+        import re
+        # Look for commands in square brackets with more flexible pattern
+        match = re.search(r'\[([A-Z_]+(?:\s+[A-Za-z0-9_]+)*)\]', text)
+        if match:
+            return match.group(1).strip()
+        return None
+
+    def _execute_ha_command(self, command):
+        """Execute Home Assistant command and return response"""
+        try:
+            # Import HA integration
+            from home_assistant_plugin import HomeAssistantIntegration
+            ha = HomeAssistantIntegration()
+
+            if not ha.hass_token:
+                return "Home Assistant not configured"
+
+            parts = command.split()
+            action = parts[0]
+
+            # Handle different command formats
+            if action in ["TURN_ON_LIGHT", "TURNING_ON_LIGHT", "TURN_ON_LIGHTS"]:
+                entity_id = f"light.{parts[1]}" if len(parts) > 1 else None
+                return ha.control_light("on", entity_id)
+
+            elif action in ["TURN_OFF_LIGHT", "TURNING_OFF_LIGHT", "TURN_OFF_LIGHTS"]:
+                entity_id = f"light.{parts[1]}" if len(parts) > 1 else None
+                return ha.control_light("off", entity_id)
+
+            elif action in ["SET_TEMPERATURE", "TASK_SET_TEMPERATURE"]:
+                if len(parts) > 1:
+                    temp = parts[1] if parts[1].isdigit() else "72"
+                    return ha.control_climate(f"set temperature to {temp}")
+                return "Temperature not specified"
+
+            elif action in ["TURN_ON_SWITCH", "TURNING_ON_SWITCH"]:
+                entity_id = f"switch.{parts[1]}" if len(parts) > 1 else None
+                return ha.control_switch("on", entity_id)
+
+            elif action in ["TURN_OFF_SWITCH", "TURNING_OFF_SWITCH"]:
+                entity_id = f"switch.{parts[1]}" if len(parts) > 1 else None
+                return ha.control_switch("off", entity_id)
+
+            else:
+                return f"Unknown command: {command}"
+
+        except Exception as e:
+            return f"Command execution failed: {str(e)}"
 
     # ===== TTS =====
     def _play_chime(self):
