@@ -1,0 +1,2 @@
+2025-09-06 18:21:11.067 WARNING (SyncWorker_0) [homeassistant.loader] We found a custom integration xtts which has not been tested by Home Assistant. This component might cause stability problems, be sure to disable it if you experience issues with Home Assistant
+2025-09-06 18:21:11.808 WARNING (Recorder) [homeassistant.components.recorder.util] The system could not validate that the sqlite3 database at //config/home-assistant_v2.db was shutdown cleanly

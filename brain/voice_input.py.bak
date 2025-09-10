@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+import speech_recognition as sr
+import redis
+import time
+import os
+import pyaudio
+
+# Get Redis password from environment
+REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', 'genesis2024')
+
+r_redis = redis.Redis(host='localhost', port=6379, password=REDIS_PASSWORD, decode_responses=True)
+recognizer = sr.Recognizer()
+
+print("🎤 Genesis Voice Input System - ReSpeaker 4 Mic Array")
+print("Speak naturally - I'll transcribe and send to AI")
+print("Press Ctrl+C to stop")
+print("-" * 50)
+
+# --- add/keep these imports near the top of your file ---
+import os, socket, time, asyncio, json, wave, tempfile
+import speech_recognition as sr, pyaudio
+
+recognizer = sr.Recognizer()
+
+# --- WYOMING SETTINGS ---
+WY_HOST = os.getenv("WYOMING_HOST", "127.0.0.1")
+WY_PORT = int(os.getenv("WYOMING_PORT", "10300"))
+STT_BACKEND = os.getenv("STT_BACKEND", "auto")  # auto | wyoming | google
+
+# -------------------- DEVICE PICKER --------------------
+def respeaker_index():
+    pa = pyaudio.PyAudio()
+    try:
+        for i in range(pa.get_device_count()):
+            info = pa.get_device_info_by_index(i)
+            name = str(info.get("name", ""))
+            max_in = int(info.get("maxInputChannels", 0))
+            if (("ReSpeaker" in name) or ("SEEED" in name) or ("Mic Array" in name)) and max_in >= 1:
+                return i
+        return None  # fall back to default input
+    finally:
+        pa.terminate()
+
+# -------------------- WYOMING CLIENT (raw TCP, no external deps) --------------------
+async def _wy_send(w, typ, data=None, payload=b""):
+    hdr = {"type": typ}
+    if data: hdr["data"] = data
+    if payload: hdr["payload_length"] = len(payload)
+    w.write((json.dumps(hdr, separators=(",", ":")) + "\n").encode())
+    if payload: w.write(payload)
+    await w.drain()
+
+async def _wy_read(r):
+    line = await r.readline()
+    if not line:
+        return None
+    hdr = json.loads(line.decode())
+    dl = int(hdr.get("data_length") or 0)
+    if dl:
+        body = await r.readexactly(dl)
+        try:
+            hdr["data"] = json.loads(body.decode())
+        except Exception:
+            hdr["data_raw"] = body
+    pl = int(hdr.get("payload_length") or 0)
+    if pl:
+        _ = await r.readexactly(pl)
+    return hdr
+
+async def _wy_transcribe_wav(path, host=WY_HOST, port=WY_PORT, lang="en"):
+    r, w = await asyncio.open_connection(host, port)
+    await _wy_send(w, "transcribe", {"language": lang})
+    with wave.open(path, "rb") as wf:
+        rate, ch, sw = wf.getframerate(), wf.getnchannels(), wf.getsampwidth()
+        await _wy_send(w, "audio-start", {"rate": rate, "width": sw, "channels": ch})
+        while True:
+            chunk = wf.readframes(2048)
+            if not chunk:
+                break
+            await _wy_send(w, "audio-chunk", {"rate": rate, "width": sw, "channels": ch}, chunk)
+        await _wy_send(w, "audio-stop")
+    # final transcript
+    while True:
+        ev = await _wy_read(r)
+        if not ev:
+            return ""
+        if ev.get("type") == "transcript":
+            return (ev.get("data") or {}).get("text", "").strip()
+
+def _wyoming_available(host=WY_HOST, port=WY_PORT, timeout=0.5):
+    try:
+        with socket.create_connection((host, port), timeout):
+            return True
+    except OSError:
+        return False
+
+def _wy_transcribe_wav_bytes(wav_bytes, host=WY_HOST, port=WY_PORT, lang="en"):
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+        f.write(wav_bytes)
+        path = f.name
+    return asyncio.run(_wy_transcribe_wav(path, host, port, lang))
+
+# -------------------- MAIN CAPTURE + TRANSCRIBE --------------------
+def listen_and_transcribe():
+    recognizer.energy_threshold = 200
+    recognizer.dynamic_energy_threshold = True
+
+    dev = respeaker_index()
+
+    # 16 kHz mono capture from ReSpeaker (via Pulse/ALSA default if dev is None)
+    with sr.Microphone(device_index=dev, sample_rate=16000) as source:
+        print("🎤 Listening with ReSpeaker 4 Mic Array... (speak now)")
+        recognizer.adjust_for_ambient_noise(source, duration=0.6)
+        try:
+            audio = recognizer.listen(source, timeout=10, phrase_time_limit=8)
+            print("🔄 Processing speech...")
+        except sr.WaitTimeoutError:
+            print("⏰ No speech detected"); return None
+        except Exception as e:
+            print(f"❌ Microphone error: {e}"); return None
+
+    # Prefer Wyoming → fallback to Google STT
+    wav_bytes = audio.get_wav_data()
+    text = None
+
+    use_wy = (STT_BACKEND == "wyoming") or (STT_BACKEND == "auto" and _wyoming_available())
+    if use_wy:
+        try:
+            text = _wy_transcribe_wav_bytes(wav_bytes)
+        except Exception as e:
+            print(f"[wyoming] {e}")
+
+    if not text:
+        try:
+            text = recognizer.recognize_google(audio)
+        except sr.UnknownValueError:
+            print("❓ Could not understand audio"); text = None
+        except sr.RequestError as e:
+            print(f"❌ Google STT error: {e}"); text = None
+
+    return text

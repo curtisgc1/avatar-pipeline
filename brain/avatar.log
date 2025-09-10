@@ -1,0 +1,17 @@
+nohup: ignoring input
+🚀 Genesis Complete System
+📺 Open http://localhost:8080/avatar_display.html
+🎤 Avatar display will show all Genesis responses
+Traceback (most recent call last):
+  File "/home/curtis/superaibuild/brain/genesis_complete.py", line 57, in <module>
+    httpd = http.server.HTTPServer(('0.0.0.0', 8080), AvatarHandler)
+  File "/usr/lib/python3.10/socketserver.py", line 452, in __init__
+    self.server_bind()
+  File "/usr/lib/python3.10/http/server.py", line 137, in server_bind
+    socketserver.TCPServer.server_bind(self)
+  File "/usr/lib/python3.10/socketserver.py", line 466, in server_bind
+    self.socket.bind(self.server_address)
+OSError: [Errno 98] Address already in use
+📺 Avatar Display: Hello! I'm Genesis, your AI assistant. How can I help you?
+📺 Avatar Display: Hello! I'm Genesis, your AI assistant. How can I help you?
+📺 Avatar Display: I heard you say: System stability test
