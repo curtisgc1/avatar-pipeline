@@ -39,9 +39,9 @@ def rms_level(buf):
 class AvatarPipeline:
     def __init__(self):
         # ----- Services -----
-        self.stt_url   = os.getenv("STT_URL", "http://localhost:9000")
+        self.stt_url   = os.getenv("STT_URL", "http://192.168.1.235:9000")
         self.stt_path  = os.getenv("STT_ASR_PATH", "/asr")
-        self.llm_url   = os.getenv("LLM_URL", "http://localhost:11434").rstrip("/") + "/api/generate"
+        self.llm_url   = os.getenv("LLM_URL", "http://192.168.1.235:11434").rstrip("/") + "/api/generate"
         self.llm_model = os.getenv("LLM_MODEL", "dolphin-llama3:latest")
 
         # ----- Settings / Memory -----
@@ -64,7 +64,7 @@ class AvatarPipeline:
         self.awaiting_clear_confirm = False
 
         # ----- TTS backends -----
-        self.kokoro_url   = os.getenv("KOKORO_URL", "http://localhost:8880/v1")
+        self.kokoro_url   = os.getenv("KOKORO_URL", "http://192.168.1.235:5002/v1")
         self.user_voices_dir = os.path.expanduser("~/.local/share/piper/voices/en_US")
         self.voice_map = {
             "amy":      os.path.join(self.user_voices_dir, "en_US-amy-medium.onnx"),
@@ -280,7 +280,7 @@ class AvatarPipeline:
                                      input=True, input_device_index=self.input_device_index,
                                      frames_per_buffer=self.chunk)
         except Exception as e:
-            print("❌ Mic open error:", e); self._resume_hotword(); return None
+            print("Mic open error:", e); self._resume_hotword(); return None
         frames=[]; heard=False; started_at=None; last_voice_ms=0; t0=time.time()
         try:
             while True:
@@ -306,7 +306,7 @@ class AvatarPipeline:
                 wf.setframerate(self.rate); wf.writeframes(b"".join(frames))
             return fname
         except Exception as e:
-            print("❌ Recording error:", e); 
+            print("Recording error:", e); 
             try: stream.stop_stream(); stream.close()
             except: pass
             self.is_listening=False
@@ -333,7 +333,7 @@ class AvatarPipeline:
                 return
             except Exception as e:
                 last_err=e; continue
-        print("❌ Playback failed:", last_err)
+        print("Playback failed:", last_err)
 
     # ===== STT =====
     def transcribe_audio(self, f):
@@ -351,7 +351,7 @@ class AvatarPipeline:
             text = (r.json().get("text") if "application/json" in ctype else r.text).strip()
             if len(text)<2 or re.fullmatch(r"[Uu]h+|[Mm]m+|[Yy]ou", text): return ""
             return text
-        except Exception as e: print("❌ STT Exception:", e); return ""
+        except Exception as e: print("STT Exception:", e); return ""
 
     # ===== voices / wake / memory / system =====
     def _kokoro_voices(self):
@@ -385,8 +385,7 @@ class AvatarPipeline:
             self.sleeping = True
             print("[SLEEP MODE] Entering sleep - only porcupine wake word will work")
             if self.enable_tts:
-                wav = self.synthesize_speech("Going to sleep. Say porcupine to wake me.")
-                if wav: self.play_audio(wav)
+                self.speak_with_lip_sync("Going to sleep. Say porcupine to wake me.")
             self.settings["wake_mode"] = "hotword"
             self._save_settings()
             self.current_text = "AI: Sleeping. Say the wake word."
@@ -429,8 +428,7 @@ class AvatarPipeline:
             msg=f"Kokoro: {kok}. Piper: {pip}."
             self.current_text="AI: "+msg
             if self.enable_tts:
-                f=self.synthesize_speech(msg); 
-                if f: self.play_audio(f)
+                self.speak_with_lip_sync(msg)
             return True
         if re.search(r"\bdefault voice\s+(bella|sky|heart)\b", t):
             v=re.search(r"\b(bella|sky|heart)\b", t).group(1)
@@ -447,16 +445,14 @@ class AvatarPipeline:
                 self.settings["voice_engine"]="kokoro"; self.settings["kokoro_voice"]=f"af_{m.group(1)}"
                 self._save_settings(); self.current_text=f"AI: Switched to {m.group(1)}."
                 if self.enable_tts:
-                    f=self.synthesize_speech(self.current_text[4:]); 
-                    if f: self.play_audio(f)
+                    self.speak_with_lip_sync(self.current_text[4:])
                 return True
             m=re.search(r"\b(amy|kathleen|ljspeech)\b", t)
             if m and Path(self.voice_map[m.group(1)]).exists():
                 self.settings["voice_engine"]="piper"; self.settings["piper_voice"]=m.group(1)
                 self._save_settings(); self.current_text=f"AI: Switched to {m.group(1)} (Piper)."
                 if self.enable_tts:
-                    f=self.synthesize_speech(self.current_text[4:]); 
-                    if f: self.play_audio(f)
+                    self.speak_with_lip_sync(self.current_text[4:])
                 return True
 
         # memory
@@ -470,15 +466,13 @@ class AvatarPipeline:
             msg="; ".join(hits) if hits else "Nothing yet."
             self.current_text="AI: "+msg; 
             if self.enable_tts:
-                f=self.synthesize_speech(msg); 
-                if f: self.play_audio(f)
+                self.speak_with_lip_sync(msg)
             return True
         if re.fullmatch(r"(what do you remember|what do you remember\?)", t):
             hits=[e["text"] for e in self.memory][-5:]; msg="; ".join(hits) if hits else "Nothing yet."
             self.current_text="AI: "+msg; 
             if self.enable_tts:
-                f=self.synthesize_speech(msg); 
-                if f: self.play_audio(f)
+                self.speak_with_lip_sync(msg)
             return True
         m=re.search(r"\bforget\s+(.+)", t)
         if m and "forget memory" != "forget "+m.group(1):
@@ -588,7 +582,7 @@ class AvatarPipeline:
         except Exception as e:
             return f"Command execution failed: {str(e)}"
 
-    # ===== TTS =====
+        # ===== TTS =====
     def _play_chime(self):
         for cmd in (["canberra-gtk-play","-i","bell-terminal"], ["paplay","/usr/share/sounds/freedesktop/stereo/bell.oga"]):
             try: subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); break
@@ -611,14 +605,14 @@ class AvatarPipeline:
                 return
             except Exception as e:
                 last_err=e; continue
-        print("❌ Playback failed:", last_err)
+        print("Playback failed:", last_err)
     def synthesize_speech(self, text):
         txt=(text or "").strip()
         if not txt or not self.enable_tts: return None
         out="tts_out.wav"; engine=self.settings.get("voice_engine","kokoro")
         if engine=="kokoro":
             try:
-                url=self.kokoro_url.rstrip("/") + "/audio/speech"
+                url=self.kokoro_url.rstrip("/") + "/synthesize"
                 payload={"model":"kokoro","input":txt,"voice": self.settings.get("kokoro_voice","af_bella"),
                          "response_format":"wav","speed": float(self.tts_speed)}
                 r=requests.post(url, json=payload, timeout=45)
@@ -636,11 +630,35 @@ class AvatarPipeline:
             subprocess.run(["espeak-ng","-v",self.espeak_voice,"-s",str(swpm),"-w",out,txt], timeout=20, check=True)
             if Path(out).exists() and Path(out).stat().st_size>0: return out
         except Exception: pass
+        # Fallback: use beep sound if all TTS methods fail
+        beep_file = "beep.wav"
+        if Path(beep_file).exists():
+            print("TTS failed, using beep sound")
+            return beep_file
         return None
 
-    # ===== Main loop =====
+    def speak_with_lip_sync(self, text):
+        """Speak text with lip synchronization"""
+        try:
+            # Send TTS request to lip sync engine
+            import socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            message = json.dumps({
+                'action': 'speak',
+                'text': text
+            })
+            sock.sendto(message.encode(), ('localhost', 5556))  # Lip sync engine port
+            sock.close()
+            return True
+        except Exception as e:
+            print(f"Lip sync communication error: {e}")
+            # Fallback to regular TTS
+            f = self.synthesize_speech(text)
+            if f:
+                self.play_audio(f)
+            return False    # ===== Main loop =====
     def run(self):
-        print("🎭 Avatar ready. Say 'sleep now' to pause; say the wake word to resume; say 'exit' to quit.")
+        print("Avatar ready. Say 'sleep now' to pause; say the wake word to resume; say 'exit' to quit.")
         running=True
         while running:
             for e in pygame.event.get():
@@ -680,16 +698,27 @@ class AvatarPipeline:
 
             user=self.transcribe_audio(wav)
             if not user: self.current_text="Didn't catch that."; continue
+
+            # STT-based wake word detection
+            if self.settings.get("wake_mode")=="hotword" and self.settings.get("hotword_engine")=="stt":
+                wake_word = self.settings.get("wake_word", "porcupine").lower()
+                if wake_word not in user.lower():
+                    self.current_text=f"Say '{wake_word}' to wake me."; time.sleep(0.05); continue
+                # Remove wake word from the command
+                user = re.sub(r'\b' + re.escape(wake_word) + r'\b', '', user, flags=re.IGNORECASE).strip()
+
             if self.maybe_handle_voice_command(user): continue
 
             reply=self.generate_response(user); self.current_text="AI: "+reply
             self.is_speaking=True
-            f=self.synthesize_speech(reply)
-            if f: self.play_audio(f)
+            # Use lip sync for speech
+            success = self.speak_with_lip_sync(reply)
+            if not success:
+                print("Lip sync failed, using regular TTS")
             self.is_speaking=False
             time.sleep(0.05)
 
-        pygame.quit(); self.audio.terminate(); print("👋 Avatar shutdown complete")
+        pygame.quit(); self.audio.terminate(); print("Avatar shutdown complete")
 
 if __name__=="__main__":
     AvatarPipeline().run()
