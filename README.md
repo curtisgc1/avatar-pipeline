@@ -135,6 +135,7 @@ godot-avatar-3d/
 - NVIDIA Container Toolkit
 - Godot 4.x
 - Python 3.8+
+- Visual Studio Code (recommended) - See [VSCODE_SETUP.md](VSCODE_SETUP.md) for setup
 
 ### Building Services
 ```bash
@@ -160,6 +161,16 @@ redis-cli -h brain_ip ping
 ## Troubleshooting
 
 ### Common Issues
+
+**VS Code Sign-In Issues**:
+If you can't sign in to VS Code or the authentication page freezes:
+```bash
+# Run the automated fix script
+./fix_vscode_auth.sh
+
+# Or see detailed troubleshooting guide
+cat VSCODE_SETUP.md
+```
 
 **Godot Display Issues**:
 ```bash
